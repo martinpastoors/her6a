@@ -75,18 +75,20 @@ for (i in 1:length(file.list)){
              sheet  = "Haul") %>% 
       filter(!is.na(haul), !is.na(date)) %>% 
       select(one_of(colnames(.)[!grepl("x|X",colnames(.))]) ) %>% 
-      data.frame()
-    
+      data.frame() 
+
     print(file.list[i])
-    print(head(tmp))
+    # print(head(tmp))
+    glimpse(tmp)
     
-    if (j==1) t<-tmp else t<-rbind.all.columns(t,tmp)
+    if (j==1) t<-tmp else t<-bind_rows(t,tmp)
   }
 }
 
 # rename and manipulate dataset
 haul <- 
   t %>% 
+  
   mutate(vessel       = gsub("\\s+", "", str_trim(toupper(vessel))),
          haul         = as.integer(haul),
          date         = as.Date(as.numeric(date), origin = "1899-12-30"),
@@ -107,11 +109,11 @@ haul <-
          rect         = geo_inside(lon=plotlon, lat=plotlat, map=icesrectangles, variable="ICESNAME"),
          surveyarea   = ifelse (point.in.polygon(plotlon, plotlat,
                                                  areas$long[areas$area==1], areas$lat[areas$area==1])>0, "1",NA),
-         surveyarea         = ifelse (point.in.polygon(plotlon, plotlat,
+         surveyarea   = ifelse (point.in.polygon(plotlon, plotlat,
                                                  areas$long[areas$area==2], areas$lat[areas$area==2])>0, "2",surveyarea),
-         surveyarea         = ifelse (point.in.polygon(plotlon, plotlat,
+         surveyarea   = ifelse (point.in.polygon(plotlon, plotlat,
                                                  areas$long[areas$area==3], areas$lat[areas$area==3])>0, "3",surveyarea),          
-         surveyarea         = ifelse (point.in.polygon(plotlon, plotlat, 
+         surveyarea   = ifelse (point.in.polygon(plotlon, plotlat, 
                                                  areas$long[areas$area==4], areas$lat[areas$area==4])>0, "4",surveyarea) )
 
 
@@ -211,32 +213,38 @@ save(length, file="rdata/length.RData")
 
 
 
-load(file="RData/bio.RData")
-load(file="RData/length.RData")
-load(file="RData/haul.RData")
+# load(file="RData/bio.RData")
+# load(file="RData/length.RData")
+# load(file="RData/haul.RData")
 
 
 # ================================================================================
 # plotting section
 # ================================================================================
 
-# plot haul positions
-haul %>%
-  ggplot(aes(plotlon, plotlat)) + 
-  theme_publication() +
-  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
-        panel.border     = element_rect(colour="gray" , size=0.2),
-        legend.title=element_blank() ) +
+
+
+
+
+
+# relative length distribution by vessel and survey area
+length %>%
+  select(-file, -sheet) %>% 
+  left_join(haul, by=c("vessel","trip","haul","date")) %>% 
+  mutate(raisingfactor = catch*1000/sampleweight, 
+         countr        = count * raisingfactor) %>% 
+  group_by(vessel, species, surveyarea, length) %>% 
+  summarize(n = sum(countr, na.rm=TRUE)) %>% 
+  group_by(vessel, species, surveyarea) %>% 
+  mutate(prop = n / sum(n, na.rm=TRUE)) %>% 
+  filter(species == "HER") %>% 
   
-  labs(x = NULL, y = NULL) +
-  coord_quickmap(xlim=c(-10,0) , ylim=c(56,60)) +
-  geom_polygon(data=world.europe.df, aes(long, lat, group=group),
-               fill = "lightgray", colour=NA) +
-  geom_polygon(data=fao27.df,   aes(long, lat, group=group),
-               fill = NA, size=0.3, colour="black") +
-  geom_polygon(data=areas, aes(long, lat, group=area), colour="red", size=0.2,fill=NA) +
-  geom_jitter(aes(colour=factor(week)), alpha = 0.6, size=2) +
-  facet_wrap(~vessel)
+  ggplot(aes(x=length, y=prop)) + 
+  theme_publication() +
+  scale_x_reverse() +
+  coord_flip() +
+  geom_line(aes(colour=factor(vessel), group=factor(vessel))) +
+  facet_grid(. ~ surveyarea)
 
 # length-weight by area
 bio %>% 
