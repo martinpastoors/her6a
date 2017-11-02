@@ -1,0 +1,117 @@
+---
+title: "Old chunks"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE, fig.width=10, fig.asp=0.7, fig.align="center", message=FALSE, warning=FALSE}
+
+# plot haul positions
+haul %>%
+  ggplot(aes(plotlon, plotlat)) + 
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.title=element_blank() ) +
+  
+  coord_quickmap(xlim=c(-10,0) , ylim=c(56,60)) +
+  geom_polygon(data=world.europe.df, aes(long, lat, group=group),
+               fill = "lightgray", colour=NA) +
+  geom_polygon(data=fao27.df,   aes(long, lat, group=group),
+               fill = NA, size=0.3, colour="black") +
+  geom_polygon(data=areas, aes(long, lat, group=area), colour="red", size=0.2,fill=NA) +
+  geom_jitter(aes(colour=vesselname), alpha = 0.6, size=2) +
+  labs(x = NULL, y = NULL, title="2017 haul positions by vessel and week") +
+  facet_wrap(~week)
+
+```
+
+```{r, echo=FALSE, fig.width=10, fig.asp=1.2, fig.align="center", message=FALSE, warning=FALSE}
+
+# plot haul positions
+haul %>%
+  filter(vessel == "KW172") %>% 
+  ggplot(aes(plotlon, plotlat)) + 
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.title=element_blank() ) +
+  
+  coord_quickmap(xlim=c(-7.5,0) , ylim=c(57,59.6)) +
+  geom_polygon(data=world.europe.df, aes(long, lat, group=group),
+               fill = "lightgray", colour=NA) +
+  geom_polygon(data=fao27.df,   aes(long, lat, group=group),
+               fill = NA, size=0.3, colour="black") +
+  geom_polygon(data=areas, aes(long, lat, group=area), colour="red", size=0.2,fill=NA) +
+  geom_jitter(aes(colour=trip), alpha = 0.6, size=2) +
+  geom_text(aes(label=haul), position=position_jitter(width=0.2,height=0.2)) +
+  labs(x = NULL, y = NULL, title="haul positions by trip") +
+  facet_wrap(~trip, ncol=3)
+
+```
+
+```{r, echo=FALSE, fig.width=10, fig.asp=1.0, fig.align="center", message=FALSE, warning=FALSE}
+
+# relative length distribution by vessel and division
+length %>%
+  select(-file, -sheet) %>% 
+  left_join(select(haul, vessel, vesselname, trip, haul, typehaul, date, division, surveyarea, catch), by=c("vessel","vesselname", "trip","haul","date", "division", "surveyarea")) %>% 
+  mutate(raisingfactor = catch*1000/sampleweight, 
+         countr        = count * raisingfactor,
+         week          = week(date)) %>% 
+  group_by(vessel, vesselname, species, week, division, surveyarea, length) %>% 
+  summarize(n = sum(countr, na.rm=TRUE)) %>% 
+  group_by(vessel, vesselname, species, week, division, surveyarea) %>% 
+  mutate(prop = n / sum(n, na.rm=TRUE)) %>% 
+  filter(species == "HER") %>% 
+  
+  ggplot(aes(x=length, y=prop)) + 
+  theme_publication() +
+  scale_x_reverse() +
+  coord_flip() +
+  geom_line(aes(colour=factor(vesselname), group=factor(vessel)), size=1) +
+  facet_grid(week ~ surveyarea)
+
+```
+
+
+```{r, echo=FALSE, fig.width=10, fig.asp=0.6, fig.align="center", message=FALSE, warning=FALSE}
+
+# length-weight by surveyarea
+bio %>% 
+  filter(surveyarea %in% c("1","2","3","4", NA)) %>% 
+  filter(species == "HER") %>% 
+  
+  ggplot(aes(length, weight, group=vessel)) +
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.title=element_blank() ) +
+  geom_jitter(aes(colour=factor(vessel)), alpha=0.5) +
+  geom_smooth(aes(colour=factor(vessel)), method="gam", formula=y ~ x^3, se=FALSE) +
+  # geom_rect(aes(xmin = 28.5, xmax = 30,   ymin = 100, ymax = 180, surveyarea=4),  fill = NA, colour="red") +
+  facet_wrap(~surveyarea, ncol=2)
+
+```
+
+
+```{r, echo=FALSE, fig.width=10, fig.asp=0.6, fig.align="center", message=FALSE, warning=FALSE}
+
+# plot of maturity over time
+bio %>% 
+  filter(surveyarea %in% c("1","2","3","4")) %>% 
+  filter(mat %in% c("1", "2", "3","4")) %>% 
+  ggplot(aes(length, weight, group=mat)) +
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.title=element_blank() ) +
+  geom_jitter(aes(colour=factor(mat)), alpha=0.2) +
+  facet_wrap(~surveyarea, ncol=2)
+
+
+```

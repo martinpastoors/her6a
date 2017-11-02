@@ -50,6 +50,14 @@ load("../../GIS/icesrectangles.RData")
 areas <- read.csv(file="Survey areas 2017.csv", header=TRUE, stringsAsFactors = FALSE)
 
 # ================================================================================
+# Vessel names
+# ================================================================================
+
+vesselnames <- data.frame(vessel=c("KW172","PH2200","LK419", "PD265","FR487"),
+                          vesselname = c("Dirk Dirk", "Wiron 6", "Antares", "Lunar bow", "Sunbeam"))
+
+
+# ================================================================================
 # Building up file list
 # ================================================================================
 
@@ -246,16 +254,6 @@ length %>%
   geom_line(aes(colour=factor(vessel), group=factor(vessel))) +
   facet_grid(. ~ surveyarea)
 
-# length-weight by area
-bio %>% 
-  filter(area %in% c("1","2","3","4")) %>% 
-  ggplot(aes(length, weight, group=vesselname)) +
-  theme_publication() +
-  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
-        panel.border     = element_rect(colour="gray" , size=0.2),
-        legend.title=element_blank() ) +
-  geom_jitter(aes(colour=factor(vesselname)), alpha=0.2) +
-  facet_wrap(~area, ncol=2)
 
 # length-weight by maturity
 bio %>% 
