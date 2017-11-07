@@ -210,6 +210,8 @@ bio <-
          length = as.numeric(length),
          length = floor(length * 2)/2 , 
          weight = as.numeric(ifelse(weight == 0, NA, weight)),
+         mat9points = mat,
+         mat4points = maturitystage.1.4.,
          mat    = ifelse(mat == 0, NA, mat),
          mat    = ifelse(mat %in% 3:4, 2, mat),
          mat    = ifelse(mat %in% 5:6, 3, mat),
@@ -661,6 +663,54 @@ length %>%
         legend.title=element_blank() ) +
   geom_line() +
   facet_wrap(~mat, ncol=4)
+
+  # plot as geom_joy
+  # ggplot(aes(x=mat, y=date, group=date, height=prop)) +
+  # theme_publication() +
+  # theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+  #       panel.border     = element_rect(colour="gray" , size=0.2),
+  #       legend.title=element_blank() ) +
+  # geom_joy(stat="identity", scale=1) +
+  # facet_wrap(~surveyarea, ncol=4)
+
+
+```
+
+```{r, echo=FALSE, fig.width=10, fig.asp=0.5, fig.align="center", message=FALSE, warning=FALSE}
+
+# generate length maturity key for 9 point scale
+mat <- 
+  bio %>% 
+  filter(!is.na(mat)) %>% 
+  group_by(species, surveyarea, date, length, mat9points) %>% 
+  summarize(n =n()) %>% 
+  group_by(species, surveyarea, date, length) %>% 
+  mutate(prop = n / sum(n, na.rm=TRUE))
+
+# plot of maturity transformed back to the length compositions
+length %>%
+  left_join(mat, by=c("species","surveyarea","date", "length")) %>% 
+  filter(surveyarea %in% c("1","2","3","4")) %>% 
+  mutate(triphaul = paste(trip,str_pad(haul, 2, pad = "0"),sep=""),
+         count    = count * prop) %>% 
+  # mutate(date     = as.character(date)) %>% 
+  filter(species == "HER") %>% 
+  filter(!is.na(mat9points)) %>% 
+  bind_rows(data.frame(surveyarea="1")) %>% 
+  group_by(date, mat9points, surveyarea) %>%
+  summarize(count = sum(count, na.rm=TRUE)) %>% 
+  group_by(date, surveyarea) %>% 
+  mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
+  
+  # proportion of 3s by date
+  filter(mat9points <= 6, surveyarea == 3) %>% 
+  ggplot(aes(x=date, y=prop)) +
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.title=element_blank() ) +
+  geom_line() +
+  facet_wrap(~mat9points, ncol=4)
 
   # plot as geom_joy
   # ggplot(aes(x=mat, y=date, group=date, height=prop)) +
