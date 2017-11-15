@@ -43,6 +43,7 @@ library(stringr)       # string manipulation
 library(pander)        # for tables
 library(tidyverse)     # dplyr, tidyr, ggplot etc. 
 library(ggjoy)         # ridgelines
+library(ggridges)      # new instead of ggjoy 
 library(reshape2)      # dcast
 
 # library(gisland)
@@ -303,7 +304,7 @@ Martin Pastoors
 
 Date: `r format(Sys.time(), '%d/%m/%Y %X')`
 
-The six vessels covered four different areas between `r min(haul$date, na.rm=TRUE)` and the `r max(haul$date, na.rm=TRUE)` (Figure 3.1), making a total of `r nrow(haul)` sampled hauls, of which `r nrow(filter(haul, typehaul=="S"))` were taken in survey mode and the rest during commercial fisheries. 
+The six vessels covered four different areas between `r min(haul$date, na.rm=TRUE)` and the `r max(haul$date, na.rm=TRUE)` (Figure 3.1), making a total of `r nrow(haul)` hauls, of which `r nrow(filter(haul, typehaul=="S"))` were taken in survey mode and `r nrow(filter(haul, typehaul=="C"))` during commercial fisheries. It should be noted that a substantial number of commercial hauls were taken in area 4 just prior or after the survey (`r nrow(filter(haul, typehaul=="C" & division %in% c("27.4.a", "27.4.b")))` hauls)
 
 Within area 6a, herring were caught and sampled during `r n6aherringhauls` hauls, resulting in biological information collected from a total of `r n6aherringsampled` herring (Table 3.1). In addition `r n4herringhauls` hauls of herring in the adjacent North Sea are were sampled and biological information was collected from `r n4herringsampled` individual herring. Details on the sampling per trip are shown in Table 3.2 and for spawning herring in Table 3.3. Details on the number of measurement per trip and haul are shown in Table 3.4.
 
@@ -628,6 +629,39 @@ length %>%
 _Figure 3.4: Haul by haul relative length frequencies of herring by survey area. Triphaul refers to the combination of vessel, trip and haul_
 
 
+```{r, echo=FALSE, fig.width=10, fig.asp=1.4, fig.align="center", message=FALSE, warning=FALSE}
+
+# plot of length by haul with ggridges for Wiron comparing between fresh survey samples and commercial samples
+t <-
+  bio %>% 
+  filter(vessel == "PH2200") %>% 
+  mutate(triphaul = paste(trip,str_pad(haul, 2, pad = "0"),sep="")) %>% 
+  filter(species == "HER") %>% 
+  group_by(vessel, haul, length, tmp) %>% 
+  summarize(count = n()) %>% 
+  group_by(vessel, haul, tmp) %>% 
+  mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
+  filter(!is.na(haul)) 
+
+t %>%   
+  ggplot(aes(length, haul, group=haul, height=prop)) +
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.title=element_blank() ) +
+  # geom_ridgeline(aes(fill=factor(tmp)), stat="identity", scale=2, alpha=0.6) +
+  geom_ridgeline(data=filter(t, vessel=="PH2200" & tmp =="C"), scale = 5, fill="blue", alpha=0.6) +
+  geom_ridgeline(data=filter(t, vessel=="PH2200" & tmp =="S"), scale = 5, fill="red",  alpha=0.6) +
+  scale_y_continuous(trans="reverse", breaks=unique(t$haul))
+
+  # facet_wrap(~tmp, ncol=2)
+
+
+```
+
+
+
+
 ```{r, echo=FALSE, fig.width=10, fig.asp=0.5, fig.align="center", message=FALSE, warning=FALSE}
 
 # generate length maturity key
@@ -703,14 +737,23 @@ length %>%
   mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
   
   # proportion of 3s by date
-  filter(mat9points <= 6, surveyarea == 3) %>% 
-  ggplot(aes(x=date, y=prop)) +
+  
+  # filter(mat9points >= 4, mat9points <= 6, surveyarea == 3) %>% 
+  # ggplot(aes(x=date, y=prop)) +
+  # theme_publication() +
+  # theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+  #       panel.border     = element_rect(colour="gray" , size=0.2),
+  #       legend.title=element_blank() ) +
+  # geom_line() +
+  # facet_wrap(~mat9points, ncol=4)
+
+  filter(mat9points >= 4, mat9points <= 6, surveyarea == 3) %>%
+  ggplot(aes(x=date)) +
   theme_publication() +
   theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
         panel.border     = element_rect(colour="gray" , size=0.2),
         legend.title=element_blank() ) +
-  geom_line() +
-  facet_wrap(~mat9points, ncol=4)
+  geom_bar(aes(y=prop, fill=mat9points), stat="identity", position="fill") 
 
   # plot as geom_joy
   # ggplot(aes(x=mat, y=date, group=date, height=prop)) +
