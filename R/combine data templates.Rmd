@@ -706,7 +706,7 @@ length %>%
 
 ```
 
-```{r, echo=FALSE, fig.width=10, fig.asp=0.5, fig.align="center", message=FALSE, warning=FALSE}
+```{r, echo=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE}
 
 # generate length maturity key for 9 point scale
 mat <- 
@@ -765,7 +765,46 @@ length %>%
 
 _Figure 3.5: Proportion of maturity stage by date in survey area 3_
 
+```{r, echo=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE}
+
+bio %>% 
+  filter(!is.na(age)) %>% 
+  filter(surveyarea %in% c("2","3","4")) %>% 
+
+  ggplot(aes(length, age)) +
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2)) +
+  geom_point(aes(colour=factor(surveyarea)), alpha=0.5, size=2) +
+  labs(colour="survey area") +
+  facet_wrap( ~ surveyarea)
+
+```
 
 
+```{r, echo=FALSE, fig.align="center", fig.asp=1, fig.width=10, message=FALSE, warning=FALSE}
+
+bio %>% 
+  filter(surveyarea %in% c("1","2","3","4")) %>% 
+  filter(!is.na(mat)) %>% 
+  
+  group_by(surveyarea, mat) %>% 
+  summarize(count = n()) %>%
+  group_by(surveyarea) %>%
+  mutate(propmat = count/sum(count)) %>%
+  # filter(surveysurveyarea %in% 1:4) %>% 
+  
+  ggplot(aes(as.factor(mat), propmat)) +
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2)) +
+  geom_bar(stat="identity") +
+  # scale_x_reverse() +
+  # coord_flip() +
+  labs(y="frequency") +
+  facet_wrap(~ surveyarea, ncol = 2)
+
+
+```
 
 
