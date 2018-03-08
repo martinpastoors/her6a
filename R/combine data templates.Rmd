@@ -1,7 +1,7 @@
 ---
 output:
   word_document: 
-    reference_docx: my_template.dotx
+    reference_docx: ../my_template.dotx
 ---
 
 
@@ -221,7 +221,7 @@ bio <-
          mat    = ifelse(mat == 7    , 4 , mat),
          mat    = ifelse(mat == 8    , 5 , mat),
          mat    = ifelse(mat == 9    , 6 , mat),
-         mat    = ifelse(!is.na(maturitystage14), maturitystage14, mat),
+         mat    = ifelse(!is.na(maturitystage16), maturitystage16, mat),
          fishid = as.numeric(fishid),
          age    = as.integer(age) ) %>% 
   select(-typehaul) %>% 
@@ -535,7 +535,7 @@ haul %>%
   geom_polygon(data=areas, aes(long, lat, group=area), colour="red", size=0.2,fill=NA) +
   # geom_jitter(aes(size=catch, colour=factor(typehaul)), alpha = 0.6) +
   geom_jitter(aes(colour=factor(typehaul)), alpha = 0.6, size=2) +
-  labs(x = NULL, y = NULL, title="2017 haul positions of survey (S) and commercial (C) hauls") +
+  labs(x = NULL, y = NULL, title="2017 haul positions of commercial (C) and survey (S) hauls") +
   guides(size = guide_legend(nrow = 1)) +
   facet_wrap(~typehaul)
 
@@ -625,28 +625,40 @@ _Figure 3.3: Length frequencies of herring catches by survey area_
 
 
 
-```{r, echo=FALSE, fig.width=10, fig.asp=0.7, fig.align="center", message=FALSE, warning=FALSE}
+```{r, echo=FALSE, fig.width=10, fig.asp=1.0, fig.align="center", message=FALSE, warning=FALSE}
 
-# plot of length by haul with ggjoy (plotted as proportions)
+# plot of length by haul with geom_ridges (plotted as proportions)
 length %>% 
   filter(surveyarea %in% c("1","2","3","4")) %>% 
-  mutate(triphaul = paste(trip,str_pad(haul, 2, pad = "0"),sep="")) %>% 
+  mutate(datehaul = paste(date,str_pad(haul, 2, pad = "0"),sep="_")) %>% 
   filter(species == "HER") %>% 
-  group_by(triphaul, surveyarea, length) %>% 
-  summarize(count = sum(count, na.rm=TRUE)) %>% 
-  group_by(triphaul, surveyarea) %>% 
-  filter(sum(count, na.rm=TRUE) > 10) %>% 
-  mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
-  bind_rows(data.frame(surveyarea="1")) %>% 
-  filter(!is.na(triphaul)) %>% 
-
+  filter( (vessel == "PH2200" & surveyarea == "2") | 
+          (vessel == "PH2200" & surveyarea == "3" & typehaul == "C") |
+          (vessel == "KW172") |
+          (surveyarea == "3" & typehaul == "C") |
+          (surveyarea == "4")) %>% 
   
-  ggplot(aes(length, triphaul, group=triphaul, height=prop)) +
+  # group_by(vessel, trip, haul, surveyarea, typehaul) %>%
+  # filter(row_number() == 1) %>%
+  # select(vessel, trip, haul, surveyarea, typehaul) %>%
+  # arrange(surveyarea, vessel, trip, haul) %>%
+  # write.csv(file="../excel/hauls.csv", row.names=FALSE)
+
+  group_by(datehaul, surveyarea, length) %>% 
+  summarize(count = sum(count, na.rm=TRUE)) %>% 
+  group_by(datehaul, surveyarea) %>% 
+  filter(sum(count, na.rm=TRUE) > 10) %>% 
+  mutate(prop  = count / sum(count, na.rm=TRUE)) %>% 
+ 
+  # View()
+  
+  ggplot(aes(x=length, y=reorder(datehaul, desc(datehaul)), height=prop)) +
   theme_publication() +
   theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
         panel.border     = element_rect(colour="gray" , size=0.2),
         legend.title=element_blank() ) +
-  geom_joy(stat="identity", scale=2, alpha=0.6) +
+  geom_ridgeline(stat="identity", scale=6, alpha=0.4) +
+  labs(y="date_haul") +
   facet_wrap(~surveyarea, ncol=4)
 
 
@@ -769,7 +781,7 @@ _Figure 3.5: Proportion of maturity stage by date in survey area 3_
 
 bio %>% 
   filter(!is.na(age)) %>% 
-  filter(surveyarea %in% c("2","3","4")) %>% 
+  filter(surveyarea %in% c("1", "2","3","4")) %>% 
 
   ggplot(aes(length, age)) +
   theme_publication() +
@@ -777,13 +789,12 @@ bio %>%
         panel.border     = element_rect(colour="gray" , size=0.2)) +
   geom_point(aes(colour=factor(surveyarea)), alpha=0.5, size=2) +
   labs(colour="survey area") +
-  facet_wrap( ~ surveyarea)
+  facet_wrap( ~ surveyarea, ncol=4)
 
 ```
 
 
-```{r, echo=FALSE, fig.align="center", fig.asp=1, fig.width=10, message=FALSE, warning=FALSE}
-
+```{r, echo=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE}
 bio %>% 
   filter(surveyarea %in% c("1","2","3","4")) %>% 
   filter(!is.na(mat)) %>% 
@@ -801,10 +812,10 @@ bio %>%
   geom_bar(stat="identity") +
   # scale_x_reverse() +
   # coord_flip() +
-  labs(y="frequency") +
-  facet_wrap(~ surveyarea, ncol = 2)
-
+  labs(y="frequency", x="maturity") +
+  facet_wrap(~ surveyarea, ncol = 4)
 
 ```
+
 
 
