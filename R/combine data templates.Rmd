@@ -777,6 +777,7 @@ length %>%
 
 _Figure 3.5: Proportion of maturity stage by date in survey area 3_
 
+
 ```{r, echo=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE}
 
 bio %>% 
@@ -792,6 +793,9 @@ bio %>%
   facet_wrap( ~ surveyarea, ncol=4)
 
 ```
+
+_Figure 3.6: Age-lenth keys_
+
 
 
 ```{r, echo=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE}
@@ -817,5 +821,27 @@ bio %>%
 
 ```
 
+_Figure 3.7: Maturity (6 scale) by area_
 
 
+```{r, echo=FALSE, fig.width=10, fig.asp=0.8, fig.align="center", message=FALSE, warning=FALSE}
+
+# relative herring length distribution by survey area
+bio %>%
+  filter(!is.na(surveyarea)) %>% 
+  filter(species == "HER") %>% 
+  group_by(species, surveyarea, age) %>% 
+  summarize(n = n()) %>% 
+  group_by(species, surveyarea) %>% 
+  mutate(prop = n / sum(n, na.rm=TRUE)) %>% 
+
+  ggplot(aes(x=age, y=prop)) + 
+  theme_publication() +
+  # scale_x_reverse() +
+  # coord_flip() +
+  geom_bar(stat="identity") +
+  facet_wrap( ~ surveyarea)
+
+```
+
+_Figure 3.8: Proportion of maturity stage by date in survey area 3_
