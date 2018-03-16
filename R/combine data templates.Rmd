@@ -415,11 +415,13 @@ t1 <-
 
 t2 <-
   length %>% 
+  filter(species=="HER") %>% 
   group_by(vessel, vesselname, trip, typehaul) %>% 
   summarize(nlength   = sum(count, na.rm=TRUE))
 
 t3 <-
   bio %>% 
+  filter(species == "HER") %>% 
   group_by(vessel, vesselname, trip, typehaul) %>% 
   summarize(nweight   = sum(!is.na(weight)),
             nage      = sum(!is.na(age)),
@@ -451,6 +453,7 @@ _Table 3.3: overview of the number of spawning herring and the measurements take
 # trip summaries for spawning herring
 t3 <-
   bio %>% 
+  filter(species =="HER") %>% 
   filter(mat == "3") %>% 
   group_by(vessel, vesselname, trip, typehaul) %>% 
   summarize(nlength   = sum(!is.na(length)),
@@ -482,6 +485,7 @@ _Table 3.4: overview of haul properties. 'Type' refers to the type of activity (
 # haul summaries
 t1 <-
   length %>% 
+  filter(species=="HER") %>% 
   group_by(vessel, vesselname, trip, typehaul, haul, surveyarea) %>% 
   summarize(nlen   = sum(count, na.rm=TRUE))
 
@@ -489,6 +493,7 @@ t1 <-
 
 t2 <-
   bio %>% 
+  filter(species=="HER") %>%   
   group_by(vessel, vesselname, trip, typehaul, haul, surveyarea) %>% 
   summarize(nwght     = sum(!is.na(weight)),
             nage      = sum(!is.na(age)),
