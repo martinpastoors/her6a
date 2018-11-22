@@ -521,6 +521,33 @@ t1 %>%
 
 
 
+```{r, echo=FALSE, fig.width=10, fig.asp=0.5, fig.align="center", message=FALSE, warning=FALSE}
+
+# plot trips
+haul %>%
+  ggplot(aes(plotlon, plotlat)) + 
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.title=element_blank() ) +
+  
+  coord_quickmap(xlim=c(-8,0) , ylim=c(57,60)) +
+  geom_polygon(data=world.europe.df, aes(long, lat, group=group),
+               fill = "lightgray", colour=NA) +
+  geom_polygon(data=fao27.df,   aes(long, lat, group=group),
+               fill = NA, size=0.3, colour="black") +
+  geom_polygon(data=areas, aes(long, lat, group=area), colour="red", size=0.2,fill=NA) +
+  # geom_jitter(aes(size=catch, colour=factor(typehaul)), alpha = 0.6) +
+  geom_point(aes(colour=factor(paste0(vessel,trip))), alpha = 0.6, size=2) +
+  geom_line(aes(colour=factor(paste0(vessel,trip))), alpha = 0.6) +
+  
+  labs(x = NULL, y = NULL, title="2017 haul positions for each of the trips") +
+  guides(size = guide_legend(nrow = 1)) +
+  facet_wrap(~vessel)
+
+# haul %>% 
+#   filter(is.na(surveyarea), plotlon < -5)
+```
 
 ```{r, echo=FALSE, fig.width=10, fig.asp=0.5, fig.align="center", message=FALSE, warning=FALSE}
 
@@ -585,10 +612,11 @@ t1 %>%
                fill = NA, size=0.3, colour="black") +
   geom_polygon(data=areas, aes(long, lat, group=area), colour="red", size=0.2,fill=NA) +
   # geom_jitter(aes(size=catch, colour=factor(typehaul)), alpha = 0.6) +
-  geom_jitter(aes(colour=factor(variable)), alpha = 0.6, size=2) +
+  geom_jitter(aes(colour=factor(variable), size=number), alpha = 0.6) +
   labs(x = NULL, y = NULL, title="2017 haul positions with spawning herring, morphometrics and genetics") +
   guides(size = guide_legend(nrow = 1)) +
-  facet_wrap(~variable, ncol=2)
+  # facet_wrap(~variable, ncol=2)
+  facet_grid(vessel~variable)
 
 # haul %>% 
 #   filter(is.na(surveyarea), plotlon < -5)
