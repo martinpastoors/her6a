@@ -5,15 +5,6 @@ output:
 ---
 
 
-```{r setup, message=FALSE, warning=FALSE, include=FALSE}
-
-require("knitr")
-knitr::opts_chunk$set(echo = FALSE,	message = FALSE,	warning = FALSE,	crop = TRUE,	comment = "")
-knit_hooks$set(crop = hook_pdfcrop)
-
-```
-
-
 ```{r, message=FALSE, warning=FALSE, include=FALSE}
 
 # ==================================================================
@@ -34,6 +25,10 @@ knit_hooks$set(crop = hook_pdfcrop)
 # 07/02/2018 adapted code to latest data spreadsheets
 # 22/11/2018 version for 2018 survey
 # ==================================================================
+
+require("knitr")
+knitr::opts_chunk$set(echo = FALSE,	message = FALSE,	warning = FALSE,	crop = TRUE,	comment = "")
+knit_hooks$set(crop = hook_pdfcrop)
 
 # Reset lists
 rm(list=ls())
@@ -148,7 +143,8 @@ haul <-
     horzopening  = as.numeric(horzopening),
     catch        = as.numeric(catch),
     typehaul     = ifelse(is.na(typehaul) & grepl("commercial",tolower(file)), "C",typehaul),
-    # typehaul     = ifelse(is.na(typehaul), "S", typehaul),
+    typehaul     = ifelse(grepl("comm", tolower(typehaul)), "C", typehaul),
+    typehaul     = ifelse(grepl("surv", tolower(typehaul)), "S", typehaul),
     plotlon      = as.numeric(plotlon),
     plotlat      = as.numeric(plotlat),
     division     = geo_inside(lon=plotlon, lat=plotlat, 
@@ -189,6 +185,8 @@ haul <-
 
 # save RData file
 save(haul, file=paste(dropboxdir, "/2018/DATA/rdata/haul.RData", sep=""))
+
+# haul %>% filter(vessel == "N905") %>% View()
 
 # haul %>% filter(typehaul=="S", division=="27.4.a", surveyarea == "2") %>% View()
 # haul %>% filter(surveyarea == "oth") %>% View()
