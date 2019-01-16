@@ -80,8 +80,8 @@ areas <-
 # ================================================================================
 
 vesselnames <- data.frame(
-    vessel     = c("KW172"    , "PH2200" , "SCH6",  "FR244"      , "PD365"      , "N905"),
-    vesselname = c("Dirk Dirk", "Wiron 6", "Alida", "Christina S", "Kings Cross", "Voyager"), 
+    vessel     = c("KW172"    , "PH2200" , "SCH6",  "FR244"      , "PD365"      , "N905"   , "FR165"),
+    vesselname = c("Dirk Dirk", "Wiron5+6", "Alida", "Christina S", "Kings Cross", "Voyager", "Unity"), 
     stringsAsFactors = FALSE)
 
 # ================================================================================
@@ -174,14 +174,24 @@ haul <-
     
     # Outside of survey areas but within 6a
     surveyarea  = 
-      ifelse(is.na(surveyarea) & division == "27.6.a" & shootlat >= 56, "oth", surveyarea)
+      ifelse(is.na(surveyarea) & division == "27.6.a" & shootlat >= 56, "oth", surveyarea), 
+
+    surveyarea  = 
+      ifelse(is.na(surveyarea) & division == "27.6.a" & shootlat < 56, "div6.as", surveyarea), 
+    
+    surveyarea =
+      ifelse(division %in% c("27.4.a","27.4.b","27.7.a"), paste0("div",substr(division,4,6)), surveyarea),
+    
+    surveyarea = 
+      ifelse(surveyarea %in% as.character(1:5), paste0("area",surveyarea), surveyarea)
   ) %>%
   
-  left_join(vesselnames, by="vessel")
-
+  left_join(vesselnames, by="vessel") %>% 
+  mutate(vesselname2  = paste0(vesselname," (", vessel, ")") ) 
 
 # filter(t, vessel == "PD265") %>% View()
 # filter(haul, vessel == "PD265") %>% View()
+# unique(haul$surveyarea)
 
 # save RData file
 save(haul, file=paste(dropboxdir, "/2018/DATA/rdata/haul.RData", sep=""))
@@ -231,24 +241,29 @@ bio <-
          haul   = as.integer(haul),
          date   = as.Date(as.numeric(date), origin = "1899-12-30"),
          fishid = as.integer(fishid),
+         
+         # length in half cm groups
          length = as.numeric(length),
          length = floor(length * 2)/2 , 
+         
+         # length in cm groups
+         lengthcm = floor(length), 
+         
          weight = as.numeric(ifelse(weight == 0, NA, weight)),
          mat    = as.numeric(mat),
          maturitystage19 = as.numeric(maturitystage19),
          
          # mat    = ifelse(maturitystage19 == 0    , NA, mat),
-         mat    = ifelse(maturitystage19 %in% 3:4, 2 , mat),
-         mat    = ifelse(maturitystage19 %in% 5:6, 3 , mat),
+         mat    = ifelse(maturitystage19 %in% 3:4  , 2 , mat),
+         mat    = ifelse(maturitystage19 %in% 5:6  , 3 , mat),
          mat    = ifelse(maturitystage19 %in% 7    , 4 , mat),
          mat    = ifelse(maturitystage19 %in% 8    , 5 , mat),
          mat    = ifelse(maturitystage19 %in% 9    , 6 , mat),
-         fishid = as.numeric(fishid),
          age    = as.integer(age),
          wr     = as.integer(wr) ) %>% 
-  select(-haultype) %>% 
+  select(-haultype, -nearestlowest05, -measuredlengthcm) %>% 
   left_join(select(haul, 
-                   vessel, vesselname, trip, haul, typehaul, division, surveyarea),
+                   vessel, vesselname, vesselname2, trip, haul, typehaul, division, surveyarea),
             by=c("vessel","trip","haul"))
 
 # unique(bio$vessel)
@@ -256,9 +271,13 @@ bio <-
 # unique(haul$vesselname)
 # unique(bio$vesselname)
 # unique(haul$trip)
-# unique(bio$trip)
-# filter(haul, is.na(typehaul)) %>% View()
+
+unique(bio$length)
+
+# filter(bio, !is.na(mat)) %>% View()
+
 # bio %>% View()
+
 
 # save RData file
 save(bio, file=paste(dropboxdir, "/2018/DATA/rdata/bio.RData", sep=""))
@@ -294,13 +313,17 @@ for (i in 1:length(file.list)){
 length <- 
   t %>% 
   mutate(length = as.numeric(length),
+
+         # length in cm groups
+         lengthcm = floor(length), 
+         
          vessel = gsub("\\s+", "", str_trim(toupper(vessel))),
          haul   = as.integer(haul),
          sampleweight = as.numeric(sampleweight),
          date   = as.Date(as.numeric(date), origin = "1899-12-30"),
          count  = as.integer(count) ) %>% 
   filter(merk == "0") %>% 
-  left_join(select(haul, vessel, vesselname, trip, haul, typehaul, division, surveyarea), by=c("vessel","trip","haul"))
+  left_join(select(haul, vessel, vesselname, vesselname2, trip, haul, typehaul, division, surveyarea),    by=c("vessel","trip","haul"))
 
 # save RData file
 save(length, file=paste(dropboxdir, "/2018/DATA/rdata/length.RData", sep=""))
@@ -331,6 +354,8 @@ n4herringsampled <-
   group_by(vessel, trip, haul) %>% 
   nrow()
 
+# bio %>% filter(!is.na(age), is.na(wr)) %>% View()
+# length %>% filter(is.na(vesselname)) %>% View()
 # bio %>% filter(!is.na(age), is.na(wr)) %>% View()
 
 ```
@@ -364,9 +389,9 @@ _Table 3.0: Total catch in 6a by area. _
 
 haul %>%
   filter(division == "27.6.a") %>% 
-  group_by(vessel, surveyarea) %>% 
+  group_by(vesselname2, surveyarea) %>% 
   summarize(catch=sum(catch,na.rm=TRUE)) %>% 
-  dcast(vessel ~ surveyarea, sum, value.var="catch", margins=TRUE) %>% 
+  dcast(vesselname2 ~ surveyarea, sum, value.var="catch", margins=TRUE) %>% 
   pandoc.table(.,
              style = "simple",
              split.tables=400, 
@@ -415,21 +440,21 @@ t2 <-
 
 
 t3 <-
-  rbind(t1,t2) %>%
+  bind_rows(t1,t2) %>%
   gather(key=variable, value=number, sampledhauls:genetics) %>% 
   group_by(typehaul, counted, variable) %>% 
   summarize(number=sum(number, na.rm=TRUE)) %>% 
   mutate(spawning="ALL")
 
 t4 <-
-  rbind(t1,t2) %>%
+  bind_rows(t1,t2) %>%
   gather(key=variable, value=number, sampledhauls:genetics) %>% 
   filter(spawning == "Y") %>% 
   group_by(typehaul, counted, variable) %>% 
   summarize(number=sum(number, na.rm=TRUE)) %>% 
   mutate(spawning="SPAWNING")
 
-rbind(t3,t4) %>% 
+bind_rows(t3,t4) %>% 
   dcast(typehaul+variable ~ spawning+counted, sum, value.var="number") %>% 
   select(typehaul, variable, ALL_haul, ALL_fish, SPAWNING_haul, SPAWNING_fish) %>% 
   rename(haultype    = typehaul,
@@ -455,7 +480,7 @@ _Table 3.2: overview of trip properties. 'Type' refers to the type of activity (
 # trip summaries
 t1 <-
   haul %>% 
-  group_by(vessel, vesselname, trip, typehaul) %>% 
+  group_by(vessel, vesselname, vesselname2, trip, typehaul) %>% 
   summarize(datestart = min(date, na.rm=TRUE),
             dateend   = max(date, na.rm=TRUE),
             nhaul     = n())
@@ -463,13 +488,13 @@ t1 <-
 t2 <-
   length %>% 
   filter(species=="HER") %>% 
-  group_by(vessel, vesselname, trip, typehaul) %>% 
+  group_by(vessel, vesselname, vesselname2, trip, typehaul) %>% 
   summarize(nlength   = sum(count, na.rm=TRUE))
 
 t3 <-
   bio %>% 
   filter(species == "HER") %>% 
-  group_by(vessel, vesselname, trip, typehaul) %>% 
+  group_by(vessel, vesselname, vesselname2, trip, typehaul) %>% 
   summarize(nweight   = sum(!is.na(weight)),
             nage      = sum(!is.na(age)),
             nsex      = sum(!is.na(sex)),
@@ -478,9 +503,11 @@ t3 <-
             ngenetics = sum(!is.na(geneticlabel)))
 
 t1 %>% 
-  left_join(t2, by=c("vessel","vesselname","trip","typehaul")) %>%
-  left_join(t3, by=c("vessel","vesselname","trip","typehaul")) %>%
-  rename(name = vesselname, begin = datestart, end=dateend, 
+  left_join(t2, by=c("vessel","vesselname","vesselname2", "trip","typehaul")) %>%
+  left_join(t3, by=c("vessel","vesselname","vesselname2", "trip","typehaul")) %>%
+  ungroup() %>% 
+  dplyr::select(-vessel, -vesselname) %>% 
+  rename(vessel = vesselname2, begin = datestart, end=dateend, 
          type=typehaul, ngen=ngenetics, nwght = nweight, nlen=nlength, nmat=nmaturity) %>% 
   pandoc.table(.,
              style = "simple",
@@ -502,7 +529,7 @@ t3 <-
   bio %>% 
   filter(species =="HER") %>% 
   filter(mat == "3") %>% 
-  group_by(vessel, vesselname, trip, typehaul) %>% 
+  group_by(vesselname2, trip, typehaul) %>% 
   summarize(nlength   = sum(!is.na(length)),
             nweight   = sum(!is.na(weight)),
             nage      = sum(!is.na(age)),
@@ -511,7 +538,7 @@ t3 <-
             ngenetics = sum(!is.na(geneticlabel)))
 
 t3 %>% 
-  rename(name = vesselname, 
+  rename(name = vesselname2, 
          type=typehaul, ngen=ngenetics, nwght = nweight, nlen=nlength) %>% 
   pandoc.table(.,
              style = "simple",
@@ -533,15 +560,16 @@ _Table 3.4: overview of haul properties. 'Type' refers to the type of activity (
 t1 <-
   length %>% 
   filter(species=="HER") %>% 
-  group_by(vessel, vesselname, trip, typehaul, haul, surveyarea) %>% 
+  group_by(vesselname2, trip, typehaul, haul, surveyarea) %>% 
   summarize(nlen   = sum(count, na.rm=TRUE))
 
 # t1 %>% filter(vessel =="KW172") %>% View()
+# length %>% filter(is.na(vesselname)) %>% View()
 
 t2 <-
   bio %>% 
   filter(species=="HER") %>%   
-  group_by(vessel, vesselname, trip, typehaul, haul, surveyarea) %>% 
+  group_by(vesselname2, trip, typehaul, haul, surveyarea) %>% 
   summarize(nwght     = sum(!is.na(weight)),
             nage      = sum(!is.na(age)),
             nsex      = sum(!is.na(sex)),
@@ -550,8 +578,8 @@ t2 <-
             ngen      = sum(!is.na(geneticlabel))) 
 
 t1 %>% 
-  left_join(t2, by=c("vessel","vesselname","trip", "typehaul","haul","surveyarea")) %>% 
-    rename(name = vesselname, area=surveyarea, type=typehaul) %>% 
+  left_join(t2, by=c("vesselname2","trip", "typehaul","haul","surveyarea")) %>% 
+    rename(name = vesselname2, area=surveyarea, type=typehaul) %>% 
     pandoc.table(.,
              style = "simple",
              split.tables=400, 
@@ -568,14 +596,14 @@ t1 %>%
 
 
 
-```{r, echo=FALSE, fig.width=10, fig.asp=1.0, fig.align="center", message=FALSE, warning=FALSE}
+```{r, echo=FALSE, fig.width=10, fig.asp=1.4, fig.align="center", message=FALSE, warning=FALSE}
 
 # plot trips
 haul %>%
   
   # filter(typehaul=="S", division=="27.4.a") %>% 
   # filter(date %in% c(as.Date("2018-09-10"): as.Date("2018-09-15"))) %>% 
-  mutate(vesseltrip = paste(vessel,trip,sep="_")) %>%
+  mutate(vesseltrip = paste(vesselname2,trip,sep="_")) %>%
   
   ggplot(aes(plotlon, plotlat)) + 
   theme_publication() +
@@ -595,7 +623,7 @@ haul %>%
   
   labs(x = NULL, y = NULL, title="2018 haul positions for each of the trips") +
   guides(size = guide_legend(nrow = 1)) +
-  facet_wrap(~vesseltrip)
+  facet_wrap(~vesseltrip, ncol=3)
 
 # haul %>% 
 #   filter(is.na(surveyarea), plotlon < -5)
@@ -636,18 +664,19 @@ _Figure 3.1: spatial distribution of commercial hauls (C) and survey hauls (S) i
 t1 <-
   bio %>% 
   mutate(spawner = ifelse(mat == "3", "Y","N")) %>% 
-  group_by(vessel, trip, haul, spawner) %>% 
+  group_by(vesselname2, trip, haul, spawner) %>% 
   summarize(spawning      = sum(!is.na(length)),
             morphometrics = sum(!is.na(imagelabel)),
             genetics      = sum(!is.na(geneticlabel))) %>% 
   gather(key=variable, value=number, spawning:genetics) %>% 
   filter(!(variable=="spawning" & spawner != "Y")) %>% 
-  group_by(vessel, trip, haul, variable) %>% 
+  group_by(vesselname2, trip, haul, variable) %>% 
   summarize(number=sum(number, na.rm=TRUE)) %>% 
   filter(number > 0) %>% 
-  left_join(select(haul, vessel, trip, haul, plotlon, plotlat),
-            by=c("vessel","trip","haul")) %>% 
+  left_join(select(haul, vesselname2, trip, haul, plotlon, plotlat),
+            by=c("vesselname2","trip","haul")) %>% 
   mutate(variable=factor(variable, levels=c("spawning","morphometrics","genetics")))
+
 
 t1 %>%
   ggplot(aes(plotlon, plotlat)) + 
@@ -668,7 +697,7 @@ t1 %>%
   labs(x = NULL, y = NULL, title="2018 haul positions with spawning herring, morphometrics and genetics") +
   guides(size = guide_legend(nrow = 1)) +
   # facet_wrap(~variable, ncol=2)
-  facet_grid(vessel~variable)
+  facet_grid(vesselname2~variable)
 
 # haul %>% 
 #   filter(is.na(surveyarea), plotlon < -5)
@@ -681,12 +710,14 @@ _Figure 3.2: spatial distribution of hauls with spawning herring, morphometric s
 
 # relative herring length distribution by survey area
 length %>%
+  filter(division == "27.6.a") %>% 
   filter(!is.na(surveyarea)) %>% 
   mutate(length = floor(length)) %>% 
-  
+
   select(-file, -sheet) %>% 
   left_join(select(haul, vessel, vesselname, trip, haul, typehaul, date, division, surveyarea, catch),
             by=c("vessel","vesselname", "trip","haul","date", "division", "surveyarea")) %>% 
+  
   mutate(raisingfactor = catch*1000/sampleweight, 
          countr        = count * raisingfactor,
          week          = week(date)) %>% 
@@ -695,13 +726,15 @@ length %>%
   group_by(species, surveyarea) %>% 
   mutate(prop = n / sum(n, na.rm=TRUE)) %>% 
   filter(species == "HER") %>% 
-  bind_rows(data.frame(surveyarea="1")) %>% 
-  
+
   ggplot(aes(x=length, y=prop)) + 
   theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.position = "none") +
   scale_x_reverse() +
   coord_flip() +
-  geom_bar(stat="identity") +
+  geom_bar(aes(fill=factor(surveyarea)), stat="identity") +
   facet_grid(. ~ surveyarea)
 
 ```
@@ -714,15 +747,14 @@ _Figure 3.3: Length frequencies of herring catches by survey area_
 
 # plot of length by haul with geom_ridges (plotted as proportions)
 length %>% 
-  filter(!is.na(surveyarea)) %>% 
-  mutate(datehaul = paste(date,str_pad(haul, 2, pad = "0"),sep="_")) %>% 
-  filter(species == "HER") %>% 
-  # filter( (vessel == "PH2200" & surveyarea == "2") | 
-  #         (vessel == "PH2200" & surveyarea == "3" & typehaul == "C") |
-  #         (vessel == "KW172") |
-  #         (surveyarea == "3" & typehaul == "C") |
-  #         (surveyarea == "4")) %>% 
   
+  filter(division == "27.6.a") %>% 
+  filter(!is.na(surveyarea)) %>% 
+  mutate(
+    datehaul = paste(date,str_pad(haul, 2, pad = "0"),sep="_"),
+    length   = floor(length)) %>% 
+  filter(species == "HER") %>% 
+
   # group_by(vessel, trip, haul, surveyarea, typehaul) %>%
   # filter(row_number() == 1) %>%
   # select(vessel, trip, haul, surveyarea, typehaul) %>%
@@ -742,7 +774,7 @@ length %>%
   theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
         panel.border     = element_rect(colour="gray" , size=0.2),
         legend.title=element_blank() ) +
-  geom_ridgeline(stat="identity", scale=6, alpha=0.4) +
+  geom_ridgeline(aes(fill=factor(surveyarea)), stat="identity", scale=4, alpha=0.4) +
   labs(y="date_haul") +
   facet_wrap(~surveyarea, ncol=5)
 
@@ -758,32 +790,38 @@ _Figure 3.4: Haul by haul relative length frequencies of herring by survey area.
 mat <- 
   bio %>% 
   filter(!is.na(mat)) %>% 
-  group_by(species, surveyarea, date, length, mat) %>% 
+  filter(division == "27.6.a") %>% 
+  filter(species == "HER") %>% 
+  
+  mutate(length = floor(length)) %>% 
+  group_by(species, date, length, mat) %>% 
   summarize(n =n()) %>% 
-  group_by(species, surveyarea, date, length) %>% 
+  group_by(species, date, length) %>% 
   mutate(prop = n / sum(n, na.rm=TRUE))
 
 # plot of maturity transformed back to the length compositions
 length %>%
-  left_join(mat, by=c("species","surveyarea","date", "length")) %>% 
-  filter(!is.na(surveyarea)) %>% 
-  mutate(triphaul = paste(trip,str_pad(haul, 2, pad = "0"),sep=""),
-         count    = count * prop) %>% 
-  # mutate(date     = as.character(date)) %>% 
+  mutate(length = floor(length)) %>% 
+  
   filter(species == "HER") %>% 
+  filter(division == "27.6.a") %>% 
+  filter(!is.na(surveyarea)) %>% 
+  
+  left_join(mat, by=c("species","date", "length")) %>% 
   filter(!is.na(mat)) %>% 
-  bind_rows(data.frame(surveyarea="1")) %>% 
-  group_by(date, mat, surveyarea) %>%
+  
+  mutate(
+    triphaul = paste(trip,str_pad(haul, 2, pad = "0"),sep=""),
+    count    = count * prop) %>% 
+  
+  group_by(date, mat) %>%
   summarize(count = sum(count, na.rm=TRUE)) %>% 
-  group_by(date, surveyarea) %>% 
+  group_by(date) %>% 
   mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
   
-  # proportion of 3s by date
   filter(mat <= 4) %>% 
-  # filter(surveyarea == 3) %>% 
   mutate(mat = paste("mat",mat,sep="")) %>% 
-  # View()
-  
+
   ggplot(aes(x=date, y=prop, group=mat)) +
   theme_publication() +
   theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
@@ -791,7 +829,7 @@ length %>%
         legend.title=element_blank() ) +
   geom_line(colour="black") +
   scale_x_date(breaks=pretty_breaks(), labels = date_format("%d%m")) +
-  facet_grid(surveyarea~mat)
+  facet_wrap(~mat)
   # facet_wrap(~mat, ncol=4)
 
   # plot as geom_joy
@@ -917,15 +955,28 @@ _Figure 3.5: Proportion of maturity stage by date in survey area 3_
 bio %>% 
   filter(!is.na(wr)) %>% 
   filter(!is.na(surveyarea)) %>% 
-
+  filter(division == "27.6.a") %>% 
+  mutate(length = floor(length)) %>% 
+  group_by(surveyarea, wr, length) %>%
+  summarize(n =n()) %>% 
+  group_by(surveyarea, wr) %>% 
+  mutate(sum = sum(n), 
+         prop = n / sum(n)) %>% 
+  
   ggplot(aes(length, wr)) +
   theme_publication() +
-  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
-        panel.border     = element_rect(colour="gray" , size=0.2)) +
+  theme(
+    strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+    panel.border     = element_rect(colour="gray" , size=0.2), 
+    legend.position = "none") +
+
+  # geom_boxplot(aes(colour=factor(surveyarea))) + 
+  
+  geom_ridgeline(aes(group=wr, height=prop, fill=factor(surveyarea)), stat="identity", scale=2, alpha=0.4) +
   geom_point(aes(colour=factor(surveyarea)), alpha=0.5, size=2) +
-  labs(colour="survey area") +
+
   scale_y_continuous(breaks=pretty_breaks()) +
-  facet_wrap( ~ surveyarea, ncol=5)
+  facet_wrap( ~ surveyarea, ncol=5) 
 
 ```
 
@@ -935,6 +986,7 @@ _Figure 3.6: wr-length keys by survey area_
 
 ```{r, echo=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE}
 bio %>% 
+  filter(division == "27.6.a") %>% 
   filter(!is.na(surveyarea)) %>% 
   filter(!is.na(mat)) %>% 
   
@@ -947,8 +999,9 @@ bio %>%
   ggplot(aes(as.factor(mat), propmat)) +
   theme_publication() +
   theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
-        panel.border     = element_rect(colour="gray" , size=0.2)) +
-  geom_bar(stat="identity") +
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.position = "none") +
+  geom_bar(aes(fill=factor(surveyarea)), stat="identity") +
   # scale_x_reverse() +
   # coord_flip() +
   labs(y="frequency", x="maturity") +
@@ -959,10 +1012,11 @@ bio %>%
 _Figure 3.7: Maturity (6 scale) by survey area_
 
 
-```{r, echo=FALSE, fig.width=10, fig.asp=0.6, fig.align="center", message=FALSE, warning=FALSE}
+```{r, echo=FALSE, fig.width=10, fig.asp=0.5, fig.align="center", message=FALSE, warning=FALSE}
 
 # relative herring wr distribution by survey area
 bio %>%
+  filter(division == "27.6.a") %>% 
   filter(!is.na(surveyarea)) %>%
   filter(!is.na(wr)) %>% 
   filter(species == "HER") %>% 
@@ -973,9 +1027,10 @@ bio %>%
 
   ggplot(aes(x=wr, y=prop)) + 
   theme_publication() +
-  # scale_x_reverse() +
-  # coord_flip() +
-  geom_bar(stat="identity") +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2),
+        legend.position = "none") +
+  geom_bar(aes(fill=surveyarea), stat="identity") +
   scale_x_continuous(breaks = pretty_breaks()) +
   facet_wrap( ~ surveyarea, ncol=5)
 
