@@ -14,6 +14,8 @@ output:
 #
 # Martin Pastoors
 #
+# R version: 3.5
+# 
 # 01/11/2016 initial coding
 # 06/03/2017 adapted for final report
 # 06/04/2017 checking number of samples
@@ -24,6 +26,7 @@ output:
 # 01/11/2017 finished coding at HER6a workshop
 # 07/02/2018 adapted code to latest data spreadsheets
 # 22/11/2018 version for 2018 survey
+# 11/02/2019 excluded haul 10 of Alida for ages
 # ==================================================================
 
 require("knitr")
@@ -42,7 +45,7 @@ library(tidyverse)     # dplyr, tidyr, ggplot etc.
 library(ggridges)      # new instead of ggjoy 
 library(reshape2)      # dcast
 library(scales)
-library(scatterpie)
+# library(scatterpie)
 
 # library(gisland)
 source("../../gisland/r/geo_inside.R")
@@ -234,9 +237,12 @@ for (i in 1:length(file.list)){
 bio <- 
   t %>% 
   lowcase() %>% 
+  
   rename(length = lengthcm,
          weight = weightg,
          mat    = maturitystage) %>% 
+  
+  # 
   mutate(vessel = gsub("\\s+", "", str_trim(toupper(vessel))),
          haul   = as.integer(haul),
          date   = as.Date(as.numeric(date), origin = "1899-12-30"),
@@ -254,6 +260,7 @@ bio <-
          maturitystage19 = as.numeric(maturitystage19),
          
          # mat    = ifelse(maturitystage19 == 0    , NA, mat),
+         mat    = ifelse(maturitystage19 %in% 2    , 1 , mat),
          mat    = ifelse(maturitystage19 %in% 3:4  , 2 , mat),
          mat    = ifelse(maturitystage19 %in% 5:6  , 3 , mat),
          mat    = ifelse(maturitystage19 %in% 7    , 4 , mat),
@@ -264,15 +271,21 @@ bio <-
   select(-haultype, -nearestlowest05, -measuredlengthcm) %>% 
   left_join(select(haul, 
                    vessel, vesselname, vesselname2, trip, haul, typehaul, division, surveyarea),
-            by=c("vessel","trip","haul"))
+            by=c("vessel","trip","haul")) %>% 
+  
+  # remove ages in haul 10 from Alida 2018L3 (there was a problem with sampling)
+  mutate (birthyear = ifelse(vessel == "SCH6" & trip == "2018L3" & haul == 10, NA, birthyear),
+          age       = ifelse(vessel == "SCH6" & trip == "2018L3" & haul == 10, NA, age),
+          wr        = ifelse(vessel == "SCH6" & trip == "2018L3" & haul == 10, NA, wr))
+
 
 # unique(bio$vessel)
 # unique(haul$vessel)
 # unique(haul$vesselname)
 # unique(bio$vesselname)
 # unique(haul$trip)
-
-unique(bio$length)
+# glimpse(bio)
+# unique(bio$length)
 
 # filter(bio, !is.na(mat)) %>% View()
 
@@ -371,11 +384,11 @@ The six vessels covered four different areas between `r min(haul$date, na.rm=TRU
 
 Within area 6a, herring were caught and sampled during `r n6aherringhauls` hauls, resulting in biological information collected from a total of `r n6aherringsampled` herring (Table 3.1). In addition `r n4herringhauls` hauls of herring in the adjacent North Sea are were sampled and biological information was collected from `r n4herringsampled` individual herring. Details on the sampling per trip are shown in Table 3.2 and for spawning herring in Table 3.3. Details on the number of measurement per trip and haul are shown in Table 3.4.
 
-Most of the spawning herring were found in area 3, west of the mainland. Almost no herring were observed in Area 1 (pre-spawning mixing area). No spawning herring were found in the Outer Hebrides (Figure 3.2).
+Spawning herring [ more text ] (Figure 3.2).
 
 Length distributions of herring were largely similar by survey area and by haul (Figure 3.3, 3.4).
 
-Because many of the samples have been taken in survey area 3, it is possible to focus on the time development in maturity of herring in that area. All maturity data were converted into a common six point scale, in which stage 1 is immature, stage 2 is ripening, stage 3 is spawning and stage 4 is spent or resting. Spawning started on September 1st and that there was still a large amount of spawning activity by the end of the survey on September 12th (Figure 3.5). 
+Focus on the time development in maturity of herring in all survey areas. All maturity data were converted into a common six point scale, in which stage 1 is immature, stage 2 is ripening, stage 3 is spawning and stage 4 is spent or resting.  (Figure 3.5). 
 
 [This needs to come from Benoit]
 
@@ -947,7 +960,7 @@ length %>%
 
 ```
 
-_Figure 3.5: Proportion of maturity stage by date in survey area 3_
+_Figure 3.5: Proportion of maturity stage by date in all survey areas_
 
 
 ```{r, echo=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE}
