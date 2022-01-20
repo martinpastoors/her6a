@@ -103,8 +103,11 @@ file.list <-
   list.files(path = file.path(dropboxdir, surveyyear, "DATA"),
              pattern="Data recording",recursive=F, full.names=TRUE, ignore.case=TRUE) 
 
-  # remove tilde files
+# remove tilde files
 file.list <- grep("~", file.list, invert=TRUE, value = TRUE)
+
+# remove grateful
+file.list <- grep("grateful", tolower(file.list), invert=TRUE, value = TRUE)
 
 # ================================================================================
 # read haul sheets
@@ -219,7 +222,11 @@ haul <-
   left_join(vesselnames, by="vessel") %>% 
   mutate(vesselname2  = paste0(vesselname," (", vessel, ")") ) %>% 
   dplyr::select(-distancemile, -distancemileperhour, - distancetopreviousmile,
-                -distancetopreviousmileperhour, -hourstoprevious)
+                -distancetopreviousmileperhour, -hourstoprevious) %>% 
+  
+  # remove North Sea
+  filter(!grepl("27.4", division))
+
 
 # filter(t, vessel == "PD265") %>% View()
 # filter(haul, vessel == "PD265") %>% View()
@@ -312,7 +319,11 @@ bio <-
   # remove ages in haul 10 from Alida 2018L3 (there was a problem with sampling)
   mutate (birthyear = ifelse(vessel == "SCH6" & trip == "2018L3" & haul == 10, NA, birthyear),
           age       = ifelse(vessel == "SCH6" & trip == "2018L3" & haul == 10, NA, age),
-          wr        = ifelse(vessel == "SCH6" & trip == "2018L3" & haul == 10, NA, wr))
+          wr        = ifelse(vessel == "SCH6" & trip == "2018L3" & haul == 10, NA, wr)) %>% 
+  
+  # remove North Sea
+  filter(!grepl("27.4", division))
+
 
 
 # unique(bio$vessel)
@@ -377,7 +388,11 @@ length <-
          date   = as.Date(as.numeric(date), origin = "1899-12-30"),
          count  = as.integer(count) ) %>% 
   filter(merk == "0") %>% 
-  left_join(select(haul, vessel, vesselname, vesselname2, trip, haul, typehaul, division, surveyarea),    by=c("vessel","trip","haul"))
+  left_join(select(haul, vessel, vesselname, vesselname2, trip, haul, typehaul, division, surveyarea),    by=c("vessel","trip","haul")) %>% 
+  
+  # remove North Sea
+  filter(!grepl("27.4", division))
+
 
 # save RData file
 save(length, file=file.path(dropboxdir, surveyyear, "DATA","rdata", "length.RData", sep=""))
@@ -431,41 +446,49 @@ sph <-
   group_by(vessel, trip, haul) %>% 
   mutate(proportion = proportion / sum(proportion, na.rm=TRUE)) %>% 
   mutate(catch      = ifelse(!is.na(proportion), proportion*catch, catch)) %>% 
-  dplyr::select(-proportion) 
+  dplyr::select(-proportion) %>% 
+  
+  # remove North Sea
+  filter(!grepl("27.4", division))
 
 
 # save RData file
 save(sph, file=file.path(dropboxdir, surveyyear, "DATA","rdata", "sph.RData", sep=""))
 
 # summaries
+n6ahauls <-
+  haul %>% 
+  filter(division == "27.6.a") %>%
+  group_by(typehaul) %>% 
+  summarize(nhaul = sum(!is.na(vessel))) %>% 
+  ungroup()
 
-n6aherringhauls <-
+n6ahaulstotal <- summarize(n6ahauls, sum = sum(nhaul)) %>% as.integer()
+n6ahaulssurvey <- filter(n6ahauls, typehaul == "S") %>% dplyr::select(nhaul) %>% as.integer()
+n6ahaulscommercial <- filter(n6ahauls, typehaul == "C") %>% dplyr::select(nhaul) %>% as.integer()
+
+n6aherringcaught <-
+  haul %>% 
+  filter(division == "27.6.a") %>%
+  filter(toupper(herringcaught) == "Y") %>% 
+  group_by(vessel, trip, haul) %>% 
+  filter(row_number() ==1 ) %>% 
+  nrow()
+
+n6aherringsampledhauls <-
   bio %>% 
   filter(species == "HER" & division == "27.6.a") %>% 
   group_by(vessel, trip, haul) %>% 
   filter(row_number() ==1 ) %>% 
   nrow()
 
-n4herringhauls <-
-  bio %>% 
-  filter(species == "HER" & division %in% c("27.4.a","27.4.b")) %>% 
-  group_by(vessel, trip, haul) %>% 
-  filter(row_number() ==1 ) %>% 
-  nrow()
-
-n6aherringsampled <-
+n6aherringsampledfish <-
   bio %>% 
   filter(species == "HER" & division == "27.6.a") %>% 
   group_by(vessel, trip, haul) %>% 
   nrow()
 
-n4herringsampled <-
-  bio %>% 
-  filter(species == "HER" & division %in% c("27.4.a","27.4.b")) %>% 
-  group_by(vessel, trip, haul) %>% 
-  nrow()
-
-n6aherringhaulswithspawning <-
+n6aherringhaulswithspawningfish <-
   haul %>% 
   filter(division == "27.6.a") %>%
   group_by(vessel, trip, haul, spawningherring) %>% 
@@ -476,6 +499,32 @@ n6aherringhaulswithspawning <-
   mutate(sum = sum(n)) %>% 
   filter(spawningherring=="Y") %>% 
   mutate(str = paste(n, " out of ", sum))
+
+n6aherringspawningfish <-
+  bio %>% 
+  filter(division == "27.6.a") %>% 
+  filter(species == "HER") %>% 
+  filter(mat == "3") %>%
+  summarize(nfish = sum(!is.na(fishid))) %>% 
+  as.integer()
+
+
+
+# area 4
+
+n4herringhauls <-
+  bio %>% 
+  filter(species == "HER" & division %in% c("27.4.a","27.4.b")) %>% 
+  group_by(vessel, trip, haul) %>% 
+  filter(row_number() ==1 ) %>% 
+  nrow()
+
+n4herringsampled <-
+  bio %>% 
+  filter(species == "HER" & division %in% c("27.4.a","27.4.b")) %>% 
+  group_by(vessel, trip, haul) %>% 
+  nrow()
+
 
 
 xlim <- c(-8,0)
@@ -497,14 +546,11 @@ Martin Pastoors
 
 Date: `r format(Sys.time(), '%d/%m/%Y %X')`
 
-The six vessels covered four different areas between `r min(haul$date, na.rm=TRUE)` and the `r max(haul$date, na.rm=TRUE)` (Figure 3.1), making a total of `r nrow(haul)` hauls, of which `r nrow(filter(haul, typehaul=="S"))` were taken in survey mode and `r nrow(filter(haul, typehaul=="C"))` during commercial fisheries. It should be noted that the Grateful (FR249) participated as part of the ICES HERAS survey and thereby did not directly contribute to the 6a herring spawning survey effort. In addition, a number of commercial hauls (`r nrow(filter(haul, typehaul=="C" & division %in% c("27.4.a", "27.4.b")))`) were taken in in the North Sea (27.4.b) just prior or after the survey. 
+This report excludes the survey work carried out by Grateful (July 2019) and the commercial catches taking in the North Sea (Dirk Dirk, Wiron5, Wiron6). 
 
-Within area 6a, herring were caught and sampled during `r n6aherringhauls` hauls, resulting in biological information collected from a total of `r n6aherringsampled` herring (Table 3.1). 
+The five vessels covered four different areas between `r min(haul$date, na.rm=TRUE)` and the `r max(haul$date, na.rm=TRUE)` (Figure 3.1), making a total of `r nrow(haul)` hauls, of which `r nrow(filter(haul, typehaul=="S"))` were taken in survey mode and `r nrow(filter(haul, typehaul=="C"))` during commercial fisheries. 
 
-Spawning herring were found in `r n6aherringhaulswithspawning$str` hauls  (Figure 3.2).
-
-Maps of the survey tracks, relative acoustic density, and locations of hauls whose biological data was used in for the estimation of the biomass of herring in 6aN are shown in Figure 3.5, Table 3.2. _[This needs to come from Benoit. Alternatively, I could make them and include in the sampling overview, if there is a standard data format available]_ 
-
+Within area 6a, a total of `r n6ahaulstotal` hauls were carried out (`r n6ahaulssurvey` in survey mode and `r n6ahaulscommercial` in commercial mode). Herring were caught during `r n6aherringcaught` hauls, of which `r n6aherringsampledhauls` were sampled for biological information resulting in a total of `r n6aherringsampledfish` sampled herring (Table 3.1). `r n6aherringspawningfish` spawning herring were found in `r n6aherringhaulswithspawningfish$str` hauls.
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -525,7 +571,7 @@ haul %>%
 
 ```
 
-_Table 3.1: Total catch in 6a by area (all species). _
+_Table 3.1: Total catch in 6a by area (all species) during survey activities and directed commercial fishing operations. _
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -547,125 +593,68 @@ sph %>%
 
 ```
 
-_Table 3.2: Total catch in 6a by area (all species). _
+_Table 3.2: Total catch in 6a by area (all species) during survey activities and directed commercial fishing operations. _
+
+##### page break
+
+**Overview of hauls by vessel**
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-# overall summaries (per haul and per fish)
-
-t1 <-
-  bio %>% 
-  filter(species=="HER") %>% 
-  mutate(spawning = ifelse(mat == "3", "Y","N"),
-         haul     = paste(trip,str_pad(haul,2, pad="0"), sep="")) %>% 
-  group_by(vessel, trip, haul, typehaul, spawning) %>% 
-  summarize(nlength   = sum(!is.na(length)),
-            nphoto    = sum(!is.na(imagelabel)),
-            ngen      = sum(!is.na(geneticlabel))) %>% 
-  group_by(typehaul, spawning) %>% 
-  summarize(sampledhauls   = n_distinct(haul),
-            morphometrics  = sum(nphoto> 0),
-            genetics       = sum(ngen > 0)) %>% 
-  mutate(counted = "haul")
-
-t2 <-
-  bio %>% 
-  filter(species=="HER") %>% 
-  mutate(spawning = ifelse(mat == "3", "Y","N")) %>% 
-  group_by(vessel, trip, typehaul, spawning) %>% 
-  summarize(nfish     = sum(!is.na(length)),
-            nphoto    = sum(!is.na(imagelabel)),
-            ngen      = sum(!is.na(geneticlabel))) %>% 
-  group_by(typehaul, spawning) %>% 
-  summarize(sampledhauls     = sum(nfish),
-            morphometrics    = sum(nphoto),
-            genetics      = sum(ngen)) %>% 
-  mutate(counted= "fish")
-
-
-t3 <-
-  bind_rows(t1,t2) %>%
-  gather(key=variable, value=number, sampledhauls:genetics) %>% 
-  group_by(typehaul, counted, variable) %>% 
-  summarize(number=sum(number, na.rm=TRUE)) %>% 
-  mutate(spawning="ALL")
-
-t4 <-
-  bind_rows(t1,t2) %>%
-  gather(key=variable, value=number, sampledhauls:genetics) %>% 
-  filter(spawning == "Y") %>% 
-  group_by(typehaul, counted, variable) %>% 
-  summarize(number=sum(number, na.rm=TRUE)) %>% 
-  mutate(spawning="SPAWNING")
-
-bind_rows(t3,t4) %>% 
-  dcast(typehaul+variable ~ counted+spawning, sum, value.var="number", 
-        margins=c("variable", "haultype")) %>% 
-  select(typehaul, variable, haul_ALL, haul_SPAWNING, fish_ALL, fish_SPAWNING) %>% 
-  rename(haultype    = typehaul,
-         datatype    = variable,
-         nhauls     = haul_ALL,
-         nfish      = fish_ALL,
-         nhaul_withspawners = haul_SPAWNING,
-         nspawning_fish      = fish_SPAWNING) %>% 
-  
-  group_by(haultype) %>%
-  do(add_row(., .after=0)) %>%
-
-  pandoc.table(.,
-             style = "simple",
-             split.tables=400, 
-             justify = "left",
-             missing=" ",
-             round=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
-
-```
-
-_Table 3.3: overview of number of hauls and number of herring collected during commercial fishing operation (C) or survey operations (S) and for which either morphometric or genetic samples have been collected. Either all observations or for spawning herring only. _
-
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-
-# trip summaries
+# haul overview
 t1 <-
   haul %>% 
-  group_by(vessel, vesselname, vesselname2, trip, typehaul) %>% 
-  summarize(datestart = min(date, na.rm=TRUE),
-            dateend   = max(date, na.rm=TRUE),
-            nhaul     = n())
-
-t2 <-
-  length %>% 
-  filter(species=="HER") %>% 
-  group_by(vessel, vesselname, vesselname2, trip, typehaul) %>% 
-  summarize(nlength   = sum(count, na.rm=TRUE))
-
-t3 <-
-  bio %>% 
-  filter(species == "HER") %>% 
-  group_by(vessel, vesselname, vesselname2, trip, typehaul) %>% 
-  summarize(nwght   = sum(!is.na(weight)),
-            nage      = sum(!is.na(wr)),
-            nsex      = sum(!is.na(sex)),
-            nmat      = sum(!is.na(mat)),
-            nphoto    = sum(!is.na(imagelabel)),
-            ngen      = sum(!is.na(geneticlabel)))
+  ungroup() %>% 
+  filter(division=="27.6.a") %>% 
+  group_by(vesselname2, surveyarea, typehaul) %>% 
+  distinct(vessel, trip, haul) %>% 
+  summarize(nhauls = n() ) 
 
 t1 %>% 
-  left_join(t2, by=c("vessel","vesselname","vesselname2", "trip","typehaul")) %>%
-  left_join(t3, by=c("vessel","vesselname","vesselname2", "trip","typehaul")) %>%
-  gather(key=variable, value=value, nhaul:ngen) %>% 
+  dcast(typehaul+vesselname2 ~ surveyarea, sum, value.var="nhauls", 
+        margins=c("vesselname2", "typehaul", "surveyarea")) %>% 
+  # select(typehaul, variable, haul_ALL, haul_SPAWNING, fish_ALL, fish_SPAWNING) %>% 
+  
+  group_by(typehaul) %>%
+  do(add_row(., .after=0)) %>%
+
+  pandoc.table(.,
+             style = "simple",
+             split.tables=400, 
+             justify = "left",
+             missing=" ",
+             round=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+
+```
+
+_Table 3.3: overview by survey area of the number of hauls during commercial fishing operation (C) or survey operations (S). _
+
+##### page break
+
+**Overview of length-frequency sampling**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# lengthfrequency sampling
+t1 <-
+  length %>% 
   ungroup() %>% 
-  dplyr::select(-vessel, -vesselname) %>% 
-  rename(haultype    = typehaul,
-         vessel = vesselname2, 
-         begin = datestart, 
-         end=dateend) %>% 
-  dcast(haultype+vessel+trip+begin+end ~ variable, value.var="value", sum, margins=c("vessel"), na.rm=TRUE) %>% 
+  filter(species=="HER", division=="27.6.a") %>% 
+  mutate(haul     = paste(trip,str_pad(haul,2, pad="0"), sep="")) %>% 
+  group_by(vesselname2, trip, haul, surveyarea, typehaul) %>% 
+  summarize(count    = sum(count, na.rm=TRUE)) %>% 
+  group_by(vesselname2, surveyarea, typehaul) %>% 
+  summarize(nfish  = sum(count, na.rm=TRUE),
+            nhauls = n() ) 
+
+t1 %>% 
+  dcast(typehaul+vesselname2 ~ surveyarea, sum, value.var="nfish", 
+        margins=c("vesselname2", "typehaul", "surveyarea")) %>% 
+  # select(typehaul, variable, haul_ALL, haul_SPAWNING, fish_ALL, fish_SPAWNING) %>% 
   
-  group_by(vessel) %>%
+  group_by(typehaul) %>%
   do(add_row(., .after=0)) %>%
-  
+
   pandoc.table(.,
              style = "simple",
              split.tables=400, 
@@ -673,129 +662,108 @@ t1 %>%
              missing=" ",
              round=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
 
-
 ```
 
-_Table 3.4: overview of trip properties. 'Type' refers to the type of activity (S=survey, C=commercial). The variables starting with 'n' denote the number of fish measured for the specific variable._
+_Table 3.4: overview by survey area of the number of herring measured for length frequencies during commercial fishing operation (C) or survey operations (S). _
 
+**Overview of biological sampling**
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-# bio %>% filter(vessel == "KW172" & mat == "3") %>% View()
-
-# trip summaries for spawning herring
-bio %>% 
-  filter(species =="HER") %>% 
-  filter(mat == "3") %>% 
-  group_by(vesselname2, trip, typehaul) %>% 
-  summarize(nlen   = sum(!is.na(length)),
-            nwght   = sum(!is.na(weight)),
-            nage      = sum(!is.na(wr)),
-            nsex      = sum(!is.na(sex)),
-            nphoto    = sum(!is.na(imagelabel)),
-            ngen      = sum(!is.na(geneticlabel))) %>% 
-  gather(key=variable, value=value, nlen:ngen) %>% 
-  rename(name = vesselname2, haultype=typehaul) %>% 
-  dcast(haultype+name+trip ~ variable, value.var="value", sum, margins=c("name")) %>% 
+# biological sampling
+t1 <-
+  bio %>% 
+  ungroup() %>% 
+  filter(species=="HER", division=="27.6.a") %>% 
+  mutate(spawning = ifelse(mat == "3", "Y","N")) %>%
   
-  group_by(haultype) %>%
+  group_by(vesselname2, trip, haul, surveyarea, typehaul) %>% 
+  summarize(
+    nlen    = sum(!is.na(length)),
+    nwgt    = sum(!is.na(weight)),
+    nage    = sum(!is.na(wr)),
+    nsex    = sum(!is.na(sex)),
+    nmat    = sum(!is.na(mat)),
+    ngen    = sum(!is.na(geneticlabel)),
+    nmorph  = sum(!is.na(imagelabel))
+    ) %>%
+  gather(key=variable, value=value, nlen:nmorph) %>% 
+  
+  group_by(vesselname2, variable, surveyarea, typehaul) %>% 
+  summarize(value  = sum(value, na.rm=TRUE)) 
+
+t1 %>% 
+  dcast(variable+typehaul+vesselname2 ~ surveyarea, sum, value.var="value", 
+        margins=c("vesselname2", "typehaul", "surveyarea")) %>% 
+  # select(typehaul, variable, haul_ALL, haul_SPAWNING, fish_ALL, fish_SPAWNING) %>% 
+  
+  group_by(variable) %>%
   do(add_row(., .after=0)) %>%
-  
-  pandoc.table(.,
-             style = "simple",
-             split.tables=400, 
-             justify = "left",
-             missing=".",
-             round=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
 
-
-```
-
-_Table 3.5: overview of the number of spawning herring and the measurements taken on these fish._
-
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-
-# trip summaries for spawning herring
-bio %>% 
-  filter(species =="HER") %>%
-  filter(mat <= 4) %>% 
-  # filter(!is.na(geneticlabel)) %>%
-  mutate(mat = case_when(
-    mat %in% 1    ~ "immature",
-    mat == 2      ~ "ripening",
-    mat == 3      ~ "spawning",
-    mat == 4      ~ "spent",
-    mat %in% 5:6  ~ "other",
-    TRUE          ~ "unknown"
-  )) %>% 
-  mutate(mat = factor(mat, levels=c("immature", "ripening","spawning", "spent"))) %>% 
-  
-  group_by(vessel, trip, haul, mat) %>% 
-  summarize(n = n(),
-            ngen = sum(!is.na(geneticlabel))) %>% 
-  mutate(str = paste(n, " (gen=", ngen, ")", sep="")) %>%
-  dplyr::select(-n, -ngen) %>% 
-  left_join(dplyr::select(haul, vessel, trip, haul, date, plotlat, plotlon, surveyarea),
-            by = c("vessel", "trip", "haul")) %>% 
-  group_by(vessel, trip, haul, date, plotlon, plotlat, surveyarea) %>% 
-  spread(key=mat, value = "str") %>% 
-  
-  group_by(vessel, trip) %>%
-  do(add_row(., .after=0)) %>%
-  
   pandoc.table(.,
              style = "simple",
              split.tables=400, 
              justify = "left",
              missing=" ",
-             round=c(0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
-
-
-
+             round=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
 
 ```
 
-_Table 3.6: Overview of genetic samples_
+_Table 3.5: overview of biological sampling by variable (number of observations for nage, ngen, nlen, nmat, nmorph, nsex, nwght). Typehaul refers to the type of activity (S=survey, C=commercial)._
+
+##### page break
+
+**Overview of biological sampling for spawning herring only**
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
-# haul summaries
-bio %>% 
-  filter(species=="HER") %>%   
-  group_by(vesselname2, trip, typehaul, haul, surveyarea) %>% 
-  summarize(nlen      = sum(!is.na(length)), 
-            nwght     = sum(!is.na(weight)),
-            nage      = sum(!is.na(wr)),
-            nsex      = sum(!is.na(sex)),
-            nmat      = sum(!is.na(mat)),
-            nphoto    = sum(!is.na(imagelabel)),
-            ngen      = sum(!is.na(geneticlabel))) %>% 
-  gather(key=variable, value=value, nlen:ngen) %>% 
-  rename(vessel = vesselname2, haultype=typehaul, area=surveyarea) %>% 
-  dcast(haultype+area+vessel+trip+haul ~ variable, value.var="value", sum, margins=c("area","vessel")) %>% 
+# biological sampling
+t1 <-
+  bio %>% 
+  ungroup() %>% 
+  filter(species=="HER", division=="27.6.a") %>% 
+  mutate(spawning = ifelse(mat == "3", "Y","N")) %>%
+  filter(spawning == "Y") %>% 
   
-  group_by(haultype) %>%
+  group_by(vesselname2, trip, haul, surveyarea, typehaul, spawning) %>% 
+  summarize(
+    nlen    = sum(!is.na(length)),
+    nwgt    = sum(!is.na(weight)),
+    nage    = sum(!is.na(wr)),
+    nsex    = sum(!is.na(sex)),
+    ngen    = sum(!is.na(geneticlabel)),
+    nmorph  = sum(!is.na(imagelabel))
+    ) %>%
+  gather(key=variable, value=value, nlen:nmorph) %>% 
+  
+  group_by(vesselname2, variable, surveyarea, typehaul, spawning) %>% 
+  summarize(value  = sum(value, na.rm=TRUE)) 
+
+t1 %>% 
+  dcast(variable+typehaul+vesselname2 ~ surveyarea, sum, value.var="value", 
+        margins=c("vesselname2", "typehaul", "surveyarea")) %>% 
+  # select(typehaul, variable, haul_ALL, haul_SPAWNING, fish_ALL, fish_SPAWNING) %>% 
+  
+  group_by(variable) %>%
   do(add_row(., .after=0)) %>%
-  
+
   pandoc.table(.,
              style = "simple",
              split.tables=400, 
              justify = "left",
              missing=" ",
-             row.names=FALSE,
+             caption = "Spawning herring only",
              round=c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
-
-
-
 
 ```
 
+_Table 3.6: Spawning herring only. Overview of biological sampling by variable (number of observations for nage, ngen, nlen, nmat, nmorph, nsex, nwght). Typehaul refers to the type of activity (S=survey, C=commercial)._
 
-_Table 3.7: overview of haul properties. 'Type' refers to the type of activity (S=survey, C=commercial). The variables starting with 'n' denote the number of fish measured for the specific variable._
+##### page break
 
+**Overview of hauls per vessel**
 
-```{r, echo=FALSE, fig.width=10, fig.asp=1.4, fig.align="center", message=FALSE, warning=FALSE}
+```{r, echo=FALSE, fig.width=10, fig.asp=1.0, fig.align="center", message=FALSE, warning=FALSE}
 
 # plot trips
 haul %>%
@@ -817,7 +785,7 @@ haul %>%
                fill = NA, size=0.3, colour="black") +
   geom_polygon(data=areas, aes(long, lat, group=area), colour="red", size=0.2,fill=NA) +
   # geom_jitter(aes(size=catch, colour=factor(typehaul)), alpha = 0.6) +
-  geom_point(colour="blue", alpha = 0.6, size=2) +
+  geom_point(aes(colour=as.factor(typehaul)), alpha = 0.6, size=2) +
   # geom_line(aes(colour=factor(paste0(vessel,trip))), alpha = 0.6) +
   
   labs(x = NULL, y = NULL, title=paste0("Haul positions for each of the trips")) +
@@ -828,7 +796,11 @@ haul %>%
 #   filter(is.na(surveyarea), plotlon < -5)
 ```
 
-_Figure 3.1: Haul positions by vessel (trip)_
+_Figure 3.1: Haul positions by vessel (trip) and haul type (C = commercial, S = survey)_
+
+##### page break
+
+**Overview of hauls with spawning, non-spawning or unknown herring**
 
 ```{r, echo=FALSE, fig.width=10, fig.asp=0.5, fig.align="center", message=FALSE, warning=FALSE}
 
@@ -868,6 +840,12 @@ haul %>%
 ```
 
 _Figure 3.2: spatial distribution of commercial hauls (C) and survey hauls (S) with spawning and non-spawning herring._
+
+##### page break
+
+**Overview of hauls by vessel with spawning herring and with genetic samples**
+
+No morphometric samples have been collected during the survey. 
 
 ```{r, echo=FALSE, fig.width=10, fig.asp=1.4, fig.align="center", message=FALSE, warning=FALSE}
 
@@ -917,6 +895,9 @@ t1 %>%
 
 _Figure 3.3: spatial distribution of hauls with spawning herring, morphometric samples and genetic samples in the herring survey_
 
+##### page break
+
+**Relative length distributions of herring**
 
 ```{r, echo=FALSE, fig.width=10, fig.asp=0.6, fig.align="center", message=FALSE, warning=FALSE}
 
@@ -953,6 +934,9 @@ length %>%
 
 _Figure 3.4: Length frequencies of herring catches by survey area_
 
+##### page break
+
+**Relative length by haul of herring by date and area**
 
 
 ```{r, echo=FALSE, fig.width=10, fig.asp=1.0, fig.align="center", message=FALSE, warning=FALSE}
@@ -995,6 +979,9 @@ length %>%
 
 _Figure 3.5: Haul by haul relative length frequencies of herring by survey area. Triphaul refers to the combination of vessel, trip and haul_
 
+##### page break
+
+**Herring length-maturity key**
 
 ```{r, echo=FALSE, fig.width=10, fig.asp=1.2, fig.align="center", message=FALSE, warning=FALSE}
 
@@ -1056,49 +1043,11 @@ length %>%
 
 ```
 
-_Figure 3.6: Maturity stageby day_
+_Figure 3.6: Maturity stage by day_
 
-```{r eval=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+##### page break
 
-if (sum(!is.na(bio$wr)) > 0) {
-
-  bio %>% 
-    filter(!is.na(wr)) %>% 
-    filter(!is.na(surveyarea)) %>% 
-    filter(division == "27.6.a") %>% 
-    
-    # filter(vessel=="SCH6") %>% 
-    # filter(surveyarea == "area5") %>% 
-    # View()
-  
-    mutate(length = floor(length)) %>% 
-    group_by(surveyarea, wr, length) %>%
-    summarize(n =n()) %>% 
-    group_by(surveyarea, wr) %>% 
-    mutate(sum = sum(n), 
-           prop = n / sum(n)) %>% 
-    
-    ggplot(aes(length, wr)) +
-    theme_publication() +
-    theme(
-      strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
-      panel.border     = element_rect(colour="gray" , size=0.2), 
-      legend.position = "none") +
-  
-    # geom_boxplot(aes(colour=factor(surveyarea))) + 
-    
-    geom_ridgeline(aes(group=wr, height=prop, fill=factor(surveyarea)), stat="identity", scale=2, alpha=0.4) +
-    geom_point(aes(colour=factor(surveyarea)), alpha=0.5, size=2) +
-  
-    scale_y_continuous(breaks=pretty_breaks()) +
-    facet_wrap( ~ surveyarea, ncol=5) 
-  
-  }
-
-
-```
-
-_Figure 3.7: age (wr) - length keys by survey area_
+**Herring length-maturity key**
 
 ```{r echo=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE}
 
@@ -1131,7 +1080,11 @@ if (sum(!is.na(bio$mat)) > 0) {
 
 ```
 
-_Figure 3.8: Maturity (6 scale) by survey area_
+_Figure 3.7: Maturity (6 scale) by survey area_
+
+##### page break
+
+**Herring age (winterrings) distribution by survey area**
 
 ```{r, echo=FALSE, fig.width=10, fig.asp=0.5, fig.align="center", message=FALSE, warning=FALSE}
 
@@ -1163,93 +1116,13 @@ if (sum(!is.na(bio$wr)) > 0) {
 
 ```
 
-_Figure 3.9: Proportion of wr by survey area_
+_Figure 3.8: Proportion of wr by survey area_
 
+##### page break
 
-```{r, echo=FALSE, fig.width=10, fig.asp=1.4, fig.align="center", message=FALSE, warning=FALSE}
+**Haulnumber plots by vessel**
 
-# comparing herring length distribution by haul from BIO and from LENGTH
-
-l1 <-
-  length %>%
-  filter(division == "27.6.a") %>% 
-  filter(species == "HER") %>% 
-  
-  mutate(length = floor(length)) %>%
-  # mutate(length = floor(2*length)/2) %>% 
-  
-  group_by(vessel, vesselname2, trip, haul, species, length) %>% 
-  summarize(count=sum(count, na.rm=TRUE)) %>% 
-  group_by(vessel, vesselname2, trip, haul, species) %>% 
-  mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
-  mutate(source="length")
-
-
-l2 <-
-  bio %>% 
-  filter(division == "27.6.a") %>% 
-  filter(species == "HER") %>% 
-  
-  mutate(length = floor(length)) %>%
-  # mutate(length = floor(2*length)/2) %>% 
-  
-  group_by(vessel, vesselname2, trip, haul, species, length) %>% 
-  summarize(count=n()) %>% 
-  group_by(vessel, vesselname2, trip, haul, species) %>% 
-  mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
-  mutate(source="bio")
-
-# bio %>% filter(vessel=="KW172", haul==15) %>% View()
-
-# bio %>% 
-  # filter(vessel=="KW172", haul==15) %>%   
-  # mutate(length = floor(2*length)/2) %>% 
-  # group_by(vessel, vesselname2, trip, haul, species, length) %>% 
-  # summarize(count=n()) %>% 
-  # View()
-
-
-# length frequency from self sampling data
-l3 <-
-  get(load(file.path(onedrive, "rdata", "length_raised.RData"))) %>% 
-  filter(vessel == "KW172", trip == "201909") %>% 
-  mutate(species = toupper(species)) %>%
-  
-  mutate(length = floor(length)) %>%
-  # mutate(length = floor(2*length)/2) %>% 
-  
-  filter(species =="HER") %>% 
-  filter(haul >= 13) %>% 
-  
-  group_by(vessel, trip, haul, species, length) %>% 
-  summarize(catchnumber = sum(catchnumber, na.rm=TRUE)) %>% 
-  group_by(vessel, trip, haul, species) %>% 
-  mutate(prop = catchnumber / sum(catchnumber, na.rm=TRUE)) %>% 
-  mutate(source="ss")
-
-  
-# l2 %>% 
-bind_rows(l1, l2, l3) %>%
-  filter(trip %in% c("2019094", "201909")) %>% 
-  # filter(haul > 13) %>%
-  
-  group_by(vessel, trip, haul, species) %>%
-  filter(n() >3) %>% 
-  
-  mutate(facet = paste0(vessel, trip, haul)) %>% 
-  ggplot(aes(x=length, y=prop)) + 
-  theme_publication() +
-  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
-        panel.border     = element_rect(colour="gray" , size=0.2)) +
-  geom_line(aes(colour=source)) +
-  ylim(0,0.5) +
-  facet_wrap( ~ facet)
-
-```
-
-_Figure 3.10: Comparing length frequencies from LENGTH and BIO (and SELFSAMPLING)_
-
-```{r printhaulnumberplot, echo=FALSE, message=FALSE, warning=FALSE, fig.asp=1.0}
+```{r printhaulnumberplot, echo=FALSE, fig.asp=1.0, message=FALSE, warning=FALSE}
 
 # myvessel <- unique(haul$vessel)[1]
 
@@ -1335,6 +1208,8 @@ for (f in unique(haul$vessel)) {printhaulnumberplot(myvessel = f) }
 
 
 ```{r eval=FALSE, fig.align="center", fig.asp=1.2, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+
+# NOT SHOWN
 
 # plot maturity by rectangle in pie charts
 # CANNOT GET THE PIE CHARTS TO BE ROUND !!
@@ -1441,3 +1316,133 @@ mat %>%
 
 ```
 
+
+```{r eval=FALSE, fig.align="center", fig.asp=0.5, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+
+# NOT SHOWN
+# Length-maturity by survey area
+
+if (sum(!is.na(bio$wr)) > 0) {
+
+  bio %>% 
+    filter(!is.na(wr)) %>% 
+    filter(!is.na(surveyarea)) %>% 
+    filter(division == "27.6.a") %>% 
+    
+    # filter(vessel=="SCH6") %>% 
+    # filter(surveyarea == "area5") %>% 
+    # View()
+  
+    mutate(length = floor(length)) %>% 
+    group_by(surveyarea, wr, length) %>%
+    summarize(n =n()) %>% 
+    group_by(surveyarea, wr) %>% 
+    mutate(sum = sum(n), 
+           prop = n / sum(n)) %>% 
+    
+    ggplot(aes(length, wr)) +
+    theme_publication() +
+    theme(
+      strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+      panel.border     = element_rect(colour="gray" , size=0.2), 
+      legend.position = "none") +
+  
+    # geom_boxplot(aes(colour=factor(surveyarea))) + 
+    
+    geom_ridgeline(aes(group=wr, height=prop, fill=factor(surveyarea)), stat="identity", scale=2, alpha=0.4) +
+    geom_point(aes(colour=factor(surveyarea)), alpha=0.5, size=2) +
+  
+    scale_y_continuous(breaks=pretty_breaks()) +
+    facet_wrap( ~ surveyarea, ncol=5) 
+  
+  }
+
+#_Figure 3.7: age (wr) - length keys by survey area_
+
+```
+
+
+```{r eval=FALSE, fig.align="center", fig.asp=1.4, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+
+# NOT SHOWN
+
+# comparing herring length distribution by haul from BIO and from LENGTH
+
+l1 <-
+  length %>%
+  filter(division == "27.6.a") %>% 
+  filter(species == "HER") %>% 
+  
+  mutate(length = floor(length)) %>%
+  # mutate(length = floor(2*length)/2) %>% 
+  
+  group_by(vessel, vesselname2, trip, haul, species, length) %>% 
+  summarize(count=sum(count, na.rm=TRUE)) %>% 
+  group_by(vessel, vesselname2, trip, haul, species) %>% 
+  mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
+  mutate(source="length")
+
+
+l2 <-
+  bio %>% 
+  filter(division == "27.6.a") %>% 
+  filter(species == "HER") %>% 
+  
+  mutate(length = floor(length)) %>%
+  # mutate(length = floor(2*length)/2) %>% 
+  
+  group_by(vessel, vesselname2, trip, haul, species, length) %>% 
+  summarize(count=n()) %>% 
+  group_by(vessel, vesselname2, trip, haul, species) %>% 
+  mutate(prop = count / sum(count, na.rm=TRUE)) %>% 
+  mutate(source="bio")
+
+# bio %>% filter(vessel=="KW172", haul==15) %>% View()
+
+# bio %>% 
+  # filter(vessel=="KW172", haul==15) %>%   
+  # mutate(length = floor(2*length)/2) %>% 
+  # group_by(vessel, vesselname2, trip, haul, species, length) %>% 
+  # summarize(count=n()) %>% 
+  # View()
+
+
+# length frequency from self sampling data
+l3 <-
+  get(load(file.path(onedrive, "rdata", "length_raised.RData"))) %>% 
+  filter(vessel == "KW172", trip == "201909") %>% 
+  mutate(species = toupper(species)) %>%
+  
+  mutate(length = floor(length)) %>%
+  # mutate(length = floor(2*length)/2) %>% 
+  
+  filter(species =="HER") %>% 
+  filter(haul >= 13) %>% 
+  
+  group_by(vessel, trip, haul, species, length) %>% 
+  summarize(catchnumber = sum(catchnumber, na.rm=TRUE)) %>% 
+  group_by(vessel, trip, haul, species) %>% 
+  mutate(prop = catchnumber / sum(catchnumber, na.rm=TRUE)) %>% 
+  mutate(source="ss")
+
+  
+# l2 %>% 
+bind_rows(l1, l2, l3) %>%
+  filter(trip %in% c("2019094", "201909")) %>% 
+  # filter(haul > 13) %>%
+  
+  group_by(vessel, trip, haul, species) %>%
+  filter(n() >3) %>% 
+  
+  mutate(facet = paste0(vessel, trip, haul)) %>% 
+  ggplot(aes(x=length, y=prop)) + 
+  theme_publication() +
+  theme(strip.background = element_rect(colour=NA, fill = "#f0f0f0"),
+        panel.border     = element_rect(colour="gray" , size=0.2)) +
+  geom_line(aes(colour=source)) +
+  ylim(0,0.5) +
+  facet_wrap( ~ facet)
+
+#_Figure 3.10: Comparing length frequencies from LENGTH and BIO (and SELFSAMPLING)_
+
+```
